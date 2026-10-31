@@ -1,8 +1,8 @@
-name = "cf-guestbook"
+name = "guestbook"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "./public"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "guestbook"
-database_id = "貼上 wrangler d1 create 回傳的 id"
+database_id = "794197a1-2350-4e73-bb3c-8e4a79e72d9d"
