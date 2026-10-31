@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>留言板</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+  input, textarea, button { width: 100%; box-sizing: border-box; padding: .6rem; margin-bottom: .6rem; font: inherit; }
+  button { cursor: pointer; }
+  .msg { border-bottom: 1px solid #ddd; padding: .6rem 0; }
+  .msg small { color: #777; }
+  #err { color: #c00; }
+</style>
+</head>
+<body>
+<h1>留言板</h1>
+<input id="name" placeholder="你的名字" maxlength="30">
+<textarea id="content" placeholder="想說的話" rows="3" maxlength="300"></textarea>
+<button id="send">送出留言</button>
+<p id="err"></p>
+<div id="list"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function load() {
+  const res = await fetch('/api/messages');
+  const items = await res.json();
+  $('list').innerHTML = items.length
+    ? items.map(m => `<div class="msg"><strong>${esc(m.name)}</strong> <small>${m.created_at}</small><br>${esc(m.content)}</div>`).join('')
+    : '<p>還沒有留言，成為第一個吧。</p>';
+}
+
+$('send').onclick = async () => {
+  $('err').textContent = '';
+  const res = await fetch('/api/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: $('name').value, content: $('content').value })
+  });
+  if (!res.ok) { $('err').textContent = (await res.json()).error; return; }
+  $('content').value = '';
+  load();
+};
+
+load();
+</script>
+</body>
+</html>
