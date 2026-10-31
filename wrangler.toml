@@ -1,8 +1,11 @@
-name = "guestbook"
+name = "cf-guestbook"
+main = "src/index.js"
 compatibility_date = "2025-01-01"
-pages_build_output_dir = "./public"
+
+[assets]
+directory = "./public"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "guestbook"
-database_id = "794197a1-2350-4e73-bb3c-8e4a79e72d9d"
+database_id = "貼上 D1 頁面上的 Database ID"
