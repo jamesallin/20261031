@@ -8,4 +8,4 @@ directory = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "guestbook"
-database_id = "貼上 D1 頁面上的 Database ID"
+database_id = "794197a1-2350-4e73-bb3c-8e4a79e72d9d"
