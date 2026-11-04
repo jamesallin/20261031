@@ -3,47 +3,157 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>留言板</title>
+<title>工作事項管理</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-  input, textarea, button { width: 100%; box-sizing: border-box; padding: .6rem; margin-bottom: .6rem; font: inherit; }
-  button { cursor: pointer; }
-  .msg { border-bottom: 1px solid #ddd; padding: .6rem 0; }
-  .msg small { color: #777; }
-  #err { color: #c00; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, "Noto Sans TC", sans-serif; max-width: 640px; margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; color: #222; background: #fafafa; }
+  h1 { margin: 0 0 1rem; }
+  input, select, textarea, button { font: inherit; padding: .55rem; width: 100%; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
+  button { cursor: pointer; background: #f0f0f0; }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .full { grid-column: 1 / -1; }
+  label { font-size: .85rem; color: #555; display: block; margin-bottom: .2rem; }
+  .check { display: flex; align-items: center; gap: .5rem; padding-top: 1.4rem; }
+  .check input { width: auto; }
+  #err { color: #c00; margin: .5rem 0 0; min-height: 1.2em; }
+  .task { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: .8rem 1rem; margin-bottom: .7rem; }
+  .task.done { opacity: .55; }
+  .task.done .title { text-decoration: line-through; }
+  .top { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .3rem; }
+  .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; background: #e5e7eb; }
+  .badge.tag { background: #dbeafe; color: #1e40af; }
+  .badge.urgent { background: #fee2e2; color: #b91c1c; font-weight: 600; }
+  .title { font-weight: 600; font-size: 1.05rem; }
+  .meta, .note { font-size: .88rem; color: #555; }
+  .meta .late { color: #c00; font-weight: 600; }
+  .actions { display: grid; grid-template-columns: 1fr auto; gap: .5rem; margin-top: .6rem; }
+  .actions button { width: auto; padding: .4rem .9rem; }
+  .actions select { padding: .4rem; }
+  #count { color: #666; font-size: .85rem; margin: .3rem 0 .8rem; }
 </style>
 </head>
 <body>
-<h1>留言板</h1>
-<input id="name" placeholder="你的名字" maxlength="30">
-<textarea id="content" placeholder="想說的話" rows="3" maxlength="300"></textarea>
-<button id="send">送出留言</button>
-<p id="err"></p>
+<h1>工作事項管理</h1>
+
+<div class="card">
+  <div class="grid">
+    <div>
+      <label for="tag">標籤</label>
+      <select id="tag">
+        <option>臨時</option><option>計畫</option><option>例行</option><option>專案</option>
+      </select>
+    </div>
+    <div>
+      <label for="priority">優先</label>
+      <select id="priority">
+        <option>高</option><option selected>中</option><option>低</option>
+      </select>
+    </div>
+    <div class="full">
+      <label for="title">工作事項</label>
+      <input id="title" maxlength="200" placeholder="要做什麼？">
+    </div>
+    <div>
+      <label for="due">計劃完成日期</label>
+      <input id="due" type="date">
+    </div>
+    <div>
+      <label for="status">完成情況</label>
+      <select id="status">
+        <option>未開始</option><option>進行中</option><option>已完成</option>
+      </select>
+    </div>
+    <div class="check full">
+      <input id="urgent" type="checkbox">
+      <label for="urgent" style="margin:0">緊急</label>
+    </div>
+    <div class="full">
+      <label for="note">備註</label>
+      <textarea id="note" rows="2" maxlength="500"></textarea>
+    </div>
+    <div class="full"><button id="add" class="primary">新增事項</button></div>
+  </div>
+  <p id="err"></p>
+</div>
+
+<input id="q" type="search" placeholder="🔍 輸入關鍵字搜尋（事項、備註、標籤、狀態）">
+<div id="count"></div>
 <div id="list"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const esc = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STATUSES = ['未開始', '進行中', '已完成'];
 
 async function load() {
-  const res = await fetch('/api/messages');
+  const q = $('q').value.trim();
+  const res = await fetch('/api/tasks' + (q ? '?q=' + encodeURIComponent(q) : ''));
   const items = await res.json();
-  $('list').innerHTML = items.length
-    ? items.map(m => `<div class="msg"><strong>${esc(m.name)}</strong> <small>${m.created_at}</small><br>${esc(m.content)}</div>`).join('')
-    : '<p>還沒有留言，成為第一個吧。</p>';
+  const today = new Date().toLocaleDateString('sv-SE');
+
+  $('count').textContent = q ? `找到 ${items.length} 筆` : `共 ${items.length} 筆`;
+  $('list').innerHTML = items.length ? items.map(t => {
+    const late = t.due_date && t.due_date < today && t.status !== '已完成';
+    return `
+    <div class="task ${t.status === '已完成' ? 'done' : ''}" data-id="${t.id}">
+      <div class="top">
+        <span class="badge tag">${esc(t.tag)}</span>
+        ${t.urgent ? '<span class="badge urgent">緊急</span>' : ''}
+        <span class="badge">優先：${esc(t.priority)}</span>
+      </div>
+      <div class="title">${esc(t.title)}</div>
+      <div class="meta">計劃完成：${t.due_date ? esc(t.due_date) : '未設定'}${late ? ' <span class="late">（已逾期）</span>' : ''}</div>
+      ${t.note ? `<div class="note">備註：${esc(t.note)}</div>` : ''}
+      <div class="actions">
+        <select class="st">${STATUSES.map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        <button class="del">刪除</button>
+      </div>
+    </div>`;
+  }).join('') : '<p>沒有符合的事項。</p>';
 }
 
-$('send').onclick = async () => {
+$('add').onclick = async () => {
   $('err').textContent = '';
-  const res = await fetch('/api/messages', {
+  const res = await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: $('name').value, content: $('content').value })
+    body: JSON.stringify({
+      tag: $('tag').value,
+      priority: $('priority').value,
+      title: $('title').value,
+      due_date: $('due').value,
+      status: $('status').value,
+      urgent: $('urgent').checked,
+      note: $('note').value,
+    }),
   });
-  if (!res.ok) { $('err').textContent = (await res.json()).error; return; }
-  $('content').value = '';
+  if (!res.ok) { $('err').textContent = (await res.json()).error || '新增失敗'; return; }
+  $('title').value = ''; $('note').value = ''; $('due').value = ''; $('urgent').checked = false;
   load();
 };
+
+$('list').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('st')) return;
+  const id = e.target.closest('.task').dataset.id;
+  await fetch('/api/tasks/' + id, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: e.target.value }),
+  });
+  load();
+});
+
+$('list').addEventListener('click', async (e) => {
+  if (!e.target.classList.contains('del')) return;
+  if (!confirm('確定刪除這筆事項？')) return;
+  await fetch('/api/tasks/' + e.target.closest('.task').dataset.id, { method: 'DELETE' });
+  load();
+});
+
+let timer;
+$('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 300); });
 
 load();
 </script>
