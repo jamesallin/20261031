@@ -11,25 +11,28 @@ export default {
     if (!m) return new Response("Not Found", { status: 404 });
     const id = m[1] ? Number(m[1]) : null;
 
-    // 查詢 + 關鍵字搜尋
+    // 查詢 + 關鍵字搜尋（可輸入日期，如 20261104、2026-11-04、202611）
     if (request.method === "GET" && !id) {
       const q = (url.searchParams.get("q") || "").trim().slice(0, 50);
-      let stmt;
       const order = `ORDER BY (status = '已完成'), urgent DESC,
         CASE priority WHEN '高' THEN 1 WHEN '中' THEN 2 ELSE 3 END,
         (due_date IS NULL), due_date, id DESC LIMIT 200`;
+      let sql = "SELECT * FROM tasks";
+      const binds = [];
       if (q) {
         const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-        stmt = env.DB.prepare(
-          `SELECT * FROM tasks
-           WHERE title LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\'
-              OR tag LIKE ? ESCAPE '\\' OR status LIKE ? ESCAPE '\\'
-           ${order}`
-        ).bind(like, like, like, like);
-      } else {
-        stmt = env.DB.prepare(`SELECT * FROM tasks ${order}`);
+        const conds = ["title", "note", "tag", "status"].map((c) => {
+          binds.push(like);
+          return `${c} LIKE ? ESCAPE '\\'`;
+        });
+        const digits = q.replace(/[-\/.]/g, "");
+        if (/^\d{4,8}$/.test(digits)) {
+          conds.push("REPLACE(due_date, '-', '') LIKE ?");
+          binds.push(`%${digits}%`);
+        }
+        sql += " WHERE " + conds.join(" OR ");
       }
-      const { results } = await stmt.all();
+      const { results } = await env.DB.prepare(`${sql} ${order}`).bind(...binds).all();
       return json(results);
     }
 
