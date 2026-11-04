@@ -6,32 +6,37 @@
 <title>工作事項管理</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: system-ui, "Noto Sans TC", sans-serif; max-width: 640px; margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; color: #222; background: #fafafa; }
+  body { font-family: system-ui, "Noto Sans TC", sans-serif; max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; color: #222; background: #fafafa; }
   h1 { margin: 0 0 1rem; }
-  input, select, textarea, button { font: inherit; padding: .55rem; width: 100%; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
+  input, select, textarea, button { font: inherit; padding: .5rem; width: 100%; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
   button { cursor: pointer; background: #f0f0f0; }
   button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
   .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; }
   .full { grid-column: 1 / -1; }
   label { font-size: .85rem; color: #555; display: block; margin-bottom: .2rem; }
-  .check { display: flex; align-items: center; gap: .5rem; padding-top: 1.4rem; }
+  .check { display: flex; align-items: center; gap: .5rem; }
   .check input { width: auto; }
   #err { color: #c00; margin: .5rem 0 0; min-height: 1.2em; }
-  .task { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: .8rem 1rem; margin-bottom: .7rem; }
-  .task.done { opacity: .55; }
-  .task.done .title { text-decoration: line-through; }
-  .top { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .3rem; }
-  .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; background: #e5e7eb; }
+  #count { color: #666; font-size: .85rem; margin: .4rem 0 .6rem; }
+
+  .table-wrap { overflow-x: auto; background: #fff; border: 1px solid #ddd; border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: .92rem; }
+  th, td { padding: .55rem .7rem; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr.done td { opacity: .55; }
+  tr.done .title { text-decoration: line-through; }
+  .title { font-weight: 600; min-width: 160px; }
+  .note { color: #555; min-width: 140px; }
+  .date { white-space: nowrap; }
+  .late { color: #c00; font-weight: 600; }
+  .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; background: #e5e7eb; white-space: nowrap; }
   .badge.tag { background: #dbeafe; color: #1e40af; }
   .badge.urgent { background: #fee2e2; color: #b91c1c; font-weight: 600; }
-  .title { font-weight: 600; font-size: 1.05rem; }
-  .meta, .note { font-size: .88rem; color: #555; }
-  .meta .late { color: #c00; font-weight: 600; }
-  .actions { display: grid; grid-template-columns: 1fr auto; gap: .5rem; margin-top: .6rem; }
-  .actions button { width: auto; padding: .4rem .9rem; }
-  .actions select { padding: .4rem; }
-  #count { color: #666; font-size: .85rem; margin: .3rem 0 .8rem; }
+  td select { padding: .3rem; min-width: 90px; }
+  td button { width: auto; padding: .3rem .8rem; }
+  .empty { padding: 1rem; color: #666; }
 </style>
 </head>
 <body>
@@ -41,19 +46,11 @@
   <div class="grid">
     <div>
       <label for="tag">標籤</label>
-      <select id="tag">
-        <option>臨時</option><option>計畫</option><option>例行</option><option>專案</option>
-      </select>
+      <select id="tag"><option>臨時</option><option>計畫</option><option>例行</option><option>專案</option></select>
     </div>
     <div>
       <label for="priority">優先</label>
-      <select id="priority">
-        <option>高</option><option selected>中</option><option>低</option>
-      </select>
-    </div>
-    <div class="full">
-      <label for="title">工作事項</label>
-      <input id="title" maxlength="200" placeholder="要做什麼？">
+      <select id="priority"><option>高</option><option selected>中</option><option>低</option></select>
     </div>
     <div>
       <label for="due">計劃完成日期</label>
@@ -61,26 +58,40 @@
     </div>
     <div>
       <label for="status">完成情況</label>
-      <select id="status">
-        <option>未開始</option><option>進行中</option><option>已完成</option>
-      </select>
+      <select id="status"><option>未開始</option><option>進行中</option><option>已完成</option></select>
     </div>
-    <div class="check full">
-      <input id="urgent" type="checkbox">
-      <label for="urgent" style="margin:0">緊急</label>
+    <div class="full">
+      <label for="title">工作事項</label>
+      <input id="title" maxlength="200" placeholder="要做什麼？">
     </div>
     <div class="full">
       <label for="note">備註</label>
       <textarea id="note" rows="2" maxlength="500"></textarea>
     </div>
-    <div class="full"><button id="add" class="primary">新增事項</button></div>
+    <div class="check">
+      <input id="urgent" type="checkbox">
+      <label for="urgent" style="margin:0">緊急</label>
+    </div>
+    <div><button id="add" class="primary">新增事項</button></div>
   </div>
   <p id="err"></p>
 </div>
 
-<input id="q" type="search" placeholder="🔍 輸入關鍵字搜尋（事項、備註、標籤、狀態）">
+<input id="q" type="search" placeholder="🔍 關鍵字或日期搜尋（如：會議、20261104、202611）">
 <div id="count"></div>
-<div id="list"></div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>標籤</th><th>緊急</th><th>優先</th><th>工作事項</th>
+        <th>計劃完成日期</th><th>完成情況</th><th>備註</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+  <div id="empty" class="empty" hidden>沒有符合的事項。</div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -94,24 +105,21 @@ async function load() {
   const today = new Date().toLocaleDateString('sv-SE');
 
   $('count').textContent = q ? `找到 ${items.length} 筆` : `共 ${items.length} 筆`;
-  $('list').innerHTML = items.length ? items.map(t => {
+  $('empty').hidden = items.length > 0;
+  $('list').innerHTML = items.map(t => {
     const late = t.due_date && t.due_date < today && t.status !== '已完成';
     return `
-    <div class="task ${t.status === '已完成' ? 'done' : ''}" data-id="${t.id}">
-      <div class="top">
-        <span class="badge tag">${esc(t.tag)}</span>
-        ${t.urgent ? '<span class="badge urgent">緊急</span>' : ''}
-        <span class="badge">優先：${esc(t.priority)}</span>
-      </div>
-      <div class="title">${esc(t.title)}</div>
-      <div class="meta">計劃完成：${t.due_date ? esc(t.due_date) : '未設定'}${late ? ' <span class="late">（已逾期）</span>' : ''}</div>
-      ${t.note ? `<div class="note">備註：${esc(t.note)}</div>` : ''}
-      <div class="actions">
-        <select class="st">${STATUSES.map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-        <button class="del">刪除</button>
-      </div>
-    </div>`;
-  }).join('') : '<p>沒有符合的事項。</p>';
+    <tr class="${t.status === '已完成' ? 'done' : ''}" data-id="${t.id}">
+      <td><span class="badge tag">${esc(t.tag)}</span></td>
+      <td>${t.urgent ? '<span class="badge urgent">緊急</span>' : '—'}</td>
+      <td>${esc(t.priority)}</td>
+      <td class="title">${esc(t.title)}</td>
+      <td class="date">${t.due_date ? esc(t.due_date) : '—'}${late ? ' <span class="late">逾期</span>' : ''}</td>
+      <td><select class="st">${STATUSES.map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td class="note">${esc(t.note)}</td>
+      <td><button class="del">刪除</button></td>
+    </tr>`;
+  }).join('');
 }
 
 $('add').onclick = async () => {
@@ -136,8 +144,7 @@ $('add').onclick = async () => {
 
 $('list').addEventListener('change', async (e) => {
   if (!e.target.classList.contains('st')) return;
-  const id = e.target.closest('.task').dataset.id;
-  await fetch('/api/tasks/' + id, {
+  await fetch('/api/tasks/' + e.target.closest('tr').dataset.id, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: e.target.value }),
@@ -148,7 +155,7 @@ $('list').addEventListener('change', async (e) => {
 $('list').addEventListener('click', async (e) => {
   if (!e.target.classList.contains('del')) return;
   if (!confirm('確定刪除這筆事項？')) return;
-  await fetch('/api/tasks/' + e.target.closest('.task').dataset.id, { method: 'DELETE' });
+  await fetch('/api/tasks/' + e.target.closest('tr').dataset.id, { method: 'DELETE' });
   load();
 });
 
