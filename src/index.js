@@ -1,37 +1,70 @@
+const TAGS = ["臨時", "計畫", "例行", "專案"];
+const PRIORITIES = ["高", "中", "低"];
+const STATUSES = ["未開始", "進行中", "已完成"];
+
+const json = (data, status = 200) => Response.json(data, { status });
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const m = url.pathname.match(/^\/api\/tasks(?:\/(\d+))?$/);
+    if (!m) return new Response("Not Found", { status: 404 });
+    const id = m[1] ? Number(m[1]) : null;
 
-    if (url.pathname === "/api/messages") {
-      // 讀取最新 50 筆
-      if (request.method === "GET") {
-        const { results } = await env.DB
-          .prepare("SELECT id, name, content, created_at FROM messages ORDER BY id DESC LIMIT 50")
-          .all();
-        return Response.json(results);
+    // 查詢 + 關鍵字搜尋
+    if (request.method === "GET" && !id) {
+      const q = (url.searchParams.get("q") || "").trim().slice(0, 50);
+      let stmt;
+      const order = `ORDER BY (status = '已完成'), urgent DESC,
+        CASE priority WHEN '高' THEN 1 WHEN '中' THEN 2 ELSE 3 END,
+        (due_date IS NULL), due_date, id DESC LIMIT 200`;
+      if (q) {
+        const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+        stmt = env.DB.prepare(
+          `SELECT * FROM tasks
+           WHERE title LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\'
+              OR tag LIKE ? ESCAPE '\\' OR status LIKE ? ESCAPE '\\'
+           ${order}`
+        ).bind(like, like, like, like);
+      } else {
+        stmt = env.DB.prepare(`SELECT * FROM tasks ${order}`);
       }
-
-      // 新增留言
-      if (request.method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const name = String(body.name || "").trim().slice(0, 30);
-        const content = String(body.content || "").trim().slice(0, 300);
-
-        if (!name || !content) {
-          return Response.json({ error: "請填寫名字與留言" }, { status: 400 });
-        }
-
-        await env.DB
-          .prepare("INSERT INTO messages (name, content) VALUES (?, ?)")
-          .bind(name, content)
-          .run();
-
-        return Response.json({ ok: true }, { status: 201 });
-      }
-
-      return new Response("Method Not Allowed", { status: 405 });
+      const { results } = await stmt.all();
+      return json(results);
     }
 
-    return new Response("Not Found", { status: 404 });
+    // 新增
+    if (request.method === "POST" && !id) {
+      const b = await request.json().catch(() => ({}));
+      const title = String(b.title || "").trim().slice(0, 200);
+      const tag = TAGS.includes(b.tag) ? b.tag : null;
+      const priority = PRIORITIES.includes(b.priority) ? b.priority : "中";
+      const status = STATUSES.includes(b.status) ? b.status : "未開始";
+      const due = /^\d{4}-\d{2}-\d{2}$/.test(b.due_date || "") ? b.due_date : null;
+      const note = String(b.note || "").trim().slice(0, 500);
+      if (!title || !tag) return json({ error: "請填寫標籤與工作事項" }, 400);
+
+      await env.DB.prepare(
+        `INSERT INTO tasks (tag, urgent, priority, title, due_date, status, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(tag, b.urgent ? 1 : 0, priority, title, due, status, note).run();
+      return json({ ok: true }, 201);
+    }
+
+    // 更新完成情況
+    if (request.method === "PATCH" && id) {
+      const b = await request.json().catch(() => ({}));
+      if (!STATUSES.includes(b.status)) return json({ error: "狀態不正確" }, 400);
+      await env.DB.prepare("UPDATE tasks SET status = ? WHERE id = ?").bind(b.status, id).run();
+      return json({ ok: true });
+    }
+
+    // 刪除
+    if (request.method === "DELETE" && id) {
+      await env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(id).run();
+      return json({ ok: true });
+    }
+
+    return new Response("Method Not Allowed", { status: 405 });
   },
 };
